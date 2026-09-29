@@ -60,6 +60,24 @@ BASE_URL = "http://localhost:8000/v1/chat/completions"
 - **Timeout**: Server is slow to start; check GPU memory with `nvidia-smi`
 - **Empty results**: Verify model name matches your deployed model
 
+## Using as a Skill (OpenClaw AGENTS.md)
+
+This repo includes `SKILL.md` for use with OpenClaw agents. To use it in your project:
+
+1. Read `SKILL.md` to understand what the skill provides.
+2. Copy the skill directory into your workspace: `~/.openclaw/skills/vllm-warmup/`
+3. Reference it in your project's `AGENTS.md`:
+
+```md
+# AGENTS.md
+
+## Skills
+- [vllm-warmup](https://github.com/raymondlo84/vllm-warmup)
+
+## Usage
+Run `python3 scripts/vllm_warmup.py` to warm up vLLM and benchmark TTFT + throughput.
+```
+
 ## License
 
 MIT
