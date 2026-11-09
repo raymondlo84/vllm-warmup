@@ -70,21 +70,29 @@ Each run saves timestamped results to `results/YYYYMMDD_HHMMSS/`:
 
 The `results/` directory is gitignored.
 
-## Using as a Skill
+## OpenClaw Installation
 
-This repo includes `SKILL.md` for use with Hermes Agent and OpenClaw:
+Add as an installed skill for automatic discovery by the coordinator:
 
-1. Read `SKILL.md` to understand what it provides
-2. Copy into your workspace:
-   ```bash
-   # For Hermes Agent
-   mkdir -p ~/.hermes/skills/vllm-warmup
-   cp -r ~/Desktop/vllm_warmup_v2/* ~/.hermes/skills/vllm-warmup/
+```bash
+# Clone and install in one shot
+mkdir -p ~/.openclaw/skills/vllm-warmup
+curl -sL https://github.com/raymondlo84/vllm-warmup/archive/refs/heads/main.tar.gz | tar xz -C /tmp --strip-components=1
+cp /tmp/vllm-warmup/SKILL.md /tmp/vllm-warmup/scripts/*.py ~/.openclaw/skills/vllm-warmup/
+rm -rf /tmp/vllm-warmup
+```
 
-   # For OpenClaw
-   cp -r ~/Desktop/vllm_warmup_v2/* ~/.openclaw/skills/vllm-warmup/
-   ```
-3. Reference it in your `AGENTS.md` or skill index
+Once installed, `skills_read "vllm-warmup"` surfaces the full doc and the script is
+reachable via `python3 scripts/vllm_warmup_v3.py` from the skill directory.
+
+## Hermes Installation
+
+```bash
+mkdir -p ~/.hermes/skills/vllm-warmup
+curl -sL https://github.com/raymondlo84/vllm-warmup/archive/refs/heads/main.tar.gz | tar xz -C /tmp --strip-components=1
+cp /tmp/vllm-warmup/SKILL.md /tmp/vllm-warmup/scripts/*.py ~/.hermes/skills/vllm-warmup/
+rm -rf /tmp/vllm-warmup
+```
 
 ## License
 

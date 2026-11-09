@@ -2,11 +2,16 @@
 name: vllm-warmup
 description: Warm up vLLM engines with 10-phase comprehensive benchmarking.
 version: 3.0.0
-author: Raymond Lo (raymondlo84), Hermes Agent
+author: Raymond Lo (raymondlo84), Hermes Agent, OpenClaw
 license: MIT
 platforms: [linux, macos, windows]
 metadata:
+  openclaw:
+    skillDir: ~/.openclaw/skills/vllm-warmup
+    discoverable: true
+    scripts: [scripts/vllm_warmup_v3.py]
   hermes:
+    skillDir: ~/.hermes/skills/vllm-warmup
     tags: [vllm, warmup, benchmark, cuda, jit, kv-cache]
 ---
 
