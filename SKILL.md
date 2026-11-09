@@ -1,102 +1,105 @@
-# vLLM Warmup & Benchmark
+---
+name: vllm-warmup
+description: Warm up vLLM engines with 10-phase comprehensive benchmarking.
+version: 3.0.0
+author: Raymond Lo (raymondlo84), Hermes Agent
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [vllm, warmup, benchmark, cuda, jit, kv-cache]
+---
 
-## When to use
+# vLLM Warmup v3
 
-Use when starting or restarting a vLLM server and needing to (1) warm up CUDA kernels / KV cache before production traffic, and (2) measure TTFT (time to first token) and tokens/sec for baseline performance.
+Comprehensive vLLM warmup and benchmark covering CUDA graph capture, Triton JIT compilation, KV cache priming, streaming latency, and batch scheduling. 10 phases, ~20s total, zero pip dependencies.
+
+## When to Use
+
+- After restarting a vLLM server — prime all inference paths before production traffic
+- Before benchmarking — skip cold-start skew with `--num-warmups`-style preflight
+- After model updates — re-capture all CUDA graphs and JIT kernels
+- When diagnosing latency regressions — compare phase-by-phase stats over time
+- Don't use for: production load testing (not a stress test; use `vllm bench serve` instead)
 
 ## Prerequisites
 
-- vLLM server running and reachable at `http://localhost:8000`
-- Python 3.11+ (no extra pip deps — uses stdlib only)
+- vLLM server running and reachable (default `http://localhost:8000`)
+- Python 3.11+ (stdlib only — `urllib`, `concurrent.futures`, no pip deps)
+- `gh` CLI installed if you want to push results to GitHub (optional)
 
-## Quick start
+## How to Run
+
+### Full warmup (all 10 phases, ~20s)
 
 ```bash
-# Run the bundled script (self-contained, no pip install needed)
-python3 scripts/vllm_warmup.py
+python3 scripts/vllm_warmup_v3.py
 ```
 
-## Configuration
+### Dry run (preview, no network calls)
 
-The script connects to `http://localhost:8000` by default (the vLLM OpenAI-compatible API port). To change the port or host, edit the `BASE_URL` variable at the top of the script:
-
-```python
-BASE_URL = "http://localhost:8000/v1/chat/completions"
-```
-
-## What it does
-
-The script runs 3 phases sequentially:
-
-### Phase 1: Health check
-Sends GET to `/health` and waits up to 60s for vLLM to become ready.
-
-### Phase 2: Warmup
-Fires 3 non-streaming chat requests (short prompts) to initialize:
-- CUDA kernels
-- KV cache blocks
-- Any model-specific internal state
-
-### Phase 3: Benchmark
-Fires 3 streaming chat requests and measures:
-- **TTFT** (Time To First Token) — latency before first token arrives
-- **Total generation time** — full response duration
-- **Tokens/sec** — throughput
-
-Outputs a summary with averages.
-
-## Output example
-
-```
-vLLM Warmup + Benchmark
-========================================
-
-[1/3] Checking server health...
-  Server is ready.
-
-[2/3] Sending warmup requests...
-  Warmup 1/3: Say hello.
-    -> Hello!
-
-[3/3] Benchmarking (streaming, TTFT + throughput)...
-  Bench 1/3...
-    TTFT: 0.0719s  |  Tokens: 110  |  Time: 2.4962s  |  TPS: 44.07
-  ...
-
-========================================
-BENCHMARK SUMMARY
-  Avg TTFT : 0.0739s
-  Avg TPS  : 44.21 tok/s
-  Requests : 3
-Done.
-```
-
-## Customization
-
-### Custom prompts
-Edit the `warmup_prompts` and `bench_prompts` lists in the script's `__main__` block.
-
-### Custom parameters
-- `max_tokens` in `benchmark_request()` (default: 256) — control output length
-- `temperature` (default: 0.5) — control randomness
-- Number of warmup/bench requests — adjust the list lengths
-
-### Reasoning models
-The script handles models that return content in the `reasoning` field instead of `content` (e.g. Qwen3.6). No special config needed.
-
-## Troubleshooting
-
-**Connection refused**: vLLM server isn't running or isn't on the configured port. Start it first:
 ```bash
-vllm serve MODEL --port 8000
+python3 scripts/vllm_warmup_v3.py --dry-run
 ```
 
-**Timeout**: Server is slow to respond (first request after cold start). Give it more time or check GPU memory with `nvidia-smi`.
+### Single phase
 
-**Empty results**: Check that the model name matches your deployed model. Some models require the `model` field to be set in requests.
+```bash
+python3 scripts/vllm_warmup_v3.py --phase 6
+```
 
-## Files
+### Remote server
 
-| File | Purpose |
-|------|---------|
-| `scripts/vllm_warmup.py` | Main warmup + benchmark script |
+```bash
+python3 scripts/vllm_warmup_v3.py --base-url http://remote:8000
+```
+
+## Phases
+
+| # | Phase | What it exercises | Runs |
+|---|---|---|---|
+| 1 | Triton JIT Warmup | Kernel compilation (minimal prefill→decode) | 3 |
+| 2 | CUDA Graph Prefill | Prefill shapes (64→4096 tokens) | 6 |
+| 3 | CUDA Graph Decode | Decode shapes (32→512 tokens) | 4 |
+| 4 | Streaming TTFT | Time-to-first-token measurement | 4 |
+| 5 | Chat API | Multi-turn + reasoning paths | 4 |
+| 6 | Concurrent Batch Scheduler | Ramp 2→4→8→16 concurrent | 30 |
+| 7 | Chat Streaming | Realistic multi-turn with streaming | 3 |
+| 8 | Sampling | Temperature × top-p grid (5×2) | 10 |
+| 9 | CUDA Graph Verify | Pre- vs post-capture comparison | 2 |
+| 10 | KV Cache Reuse | Repeated identical prompts | 3 |
+
+**Total: 69 requests in ~20s**
+
+## Output
+
+Prints per-request timing + a summary table (N, avg, p50, p99, TPS). Saves:
+
+- `results/YYYYMMDD_HHMMSS/warmup_report.json` — structured JSON with all data
+- `results/YYYYMMDD_HHMMSS/warmup_log.txt` — human-readable log
+
+Each run gets a new timestamped folder. Results are gitignored.
+
+## Quick Reference
+
+```bash
+python3 scripts/vllm_warmup_v3.py               # all phases
+python3 scripts/vllm_warmup_v3.py --dry-run     # preview only
+python3 scripts/vllm_warmup_v3.py --phase 6     # batch scheduler only
+python3 scripts/vllm_warmup_v3.py --base-url URL  # remote server
+python3 scripts/vllm_warmup_v3.py --model MODEL  # override model name
+```
+
+## Pitfalls
+
+- **Streaming TTFT shows 0 completion_tokens on some vLLM versions** — the tokenizer counts from `text`/`reasoning` chunks, but some servers omit these. TTFT timing is still accurate.
+- **Batch scheduler latency spikes at higher concurrency** — expected. The warmup exposes where the scheduler stalls. Use this data to tune `--max-concurrency` in production.
+- **CUDA Graph verify (phase 9) may show slower "post" time** — GPU memory pressure from earlier phases can cause this. Run in isolation (`--phase 9`) if you need clean numbers.
+- **KV cache reuse (phase 10) measures warm vs warm, not cold vs warm** — the KV cache stays allocated between runs. The metric shows consistency, not cold-start cost.
+
+## Verification
+
+1. Script exits with code 0 and prints `TOTAL: 69 runs` in the summary
+2. `results/` contains a new timestamped folder with `warmup_report.json` and `warmup_log.txt`
+3. All phases show `N > 0` in the summary table (no silent failures)
+4. No `ERROR:` lines in the per-request output
