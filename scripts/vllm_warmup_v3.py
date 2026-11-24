@@ -89,6 +89,16 @@ def _request_json(
     return json.loads(resp.read())
 
 
+def _get_json(
+    url: str,
+    timeout: int = REQUEST_TIMEOUT,
+) -> Dict[str, Any]:
+    """GET and return the response body dict.  Raises on non-2xx."""
+    req = Request(url, headers={"Accept": "application/json"})
+    resp = urlopen(req, timeout=timeout)
+    return json.loads(resp.read())
+
+
 def _stream_request(
     url: str,
     payload: Dict[str, Any],
@@ -599,12 +609,14 @@ def main() -> None:
     parser.add_argument("--phase", default=None, help="Run only this phase by number (1-10)")
     args = parser.parse_args()
 
-    # Detect server model
+    # Detect server model (GET — /v1/models is read-only)
     print("Checking vLLM server...")
     try:
-        model_info = _request_json(f"{args.base_url}/v1/models", {})
+        model_info = _get_json(f"{args.base_url}/v1/models")
         server_model = model_info["data"][0]["id"] if model_info.get("data") else "unknown"
-    except Exception:
+    except Exception as exc:
+        print(f"  WARNING: could not detect model via /v1/models ({exc}); "
+              f"falling back to '{DEFAULT_MODEL}' (override with --model)")
         server_model = DEFAULT_MODEL
 
     model = args.model or server_model
